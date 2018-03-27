@@ -2,6 +2,125 @@
 
 ## master (unreleased)
 
+## 0.16.0 (2017-12-28)
+
+### New Features
+
+* [#2082](https://github.com/clojure-emacs/cider/pull/2082), [cider-nrepl#440](https://github.com/clojure-emacs/cider-nrepl/pull/440): Add specialized stacktraces for clojure.spec assertions.
+* [#2111](https://github.com/clojure-emacs/cider/pull/2111): Add `cider-pprint-eval-last-sexp-to-comment` and `cider-pprint-eval-defun-to-comment`.
+* Add a REPL shortcut for `cider-repl-require-repl-utils` (this makes it easy to require common functions like `doc`, `source`, etc. in REPL buffers).
+* [#2112](https://github.com/clojure-emacs/cider/issues/2112): Add a new interactive command `cider-find-keyword` (bound to `C-c C-:`).
+* [#2144](https://github.com/clojure-emacs/cider/issues/2144): Create a Docker image to mimic the Travis CI environment.
+
+### Changes
+
+* `cider-switch-to-last-clojure-buffer` switches to most recent relevant Clojure(Script) buffer instead of the last "remembered" buffer.
+* [cider-nrepl#438](https://github.com/clojure-emacs/cider-nrepl/pull/438): Improve startup time by deferring loading CIDER's middleware until the first usage.
+* [#2078](https://github.com/clojure-emacs/cider/pull/2078): Improve startup time by bundling together sync requests during startup.
+* `cider-rotate-default-connection` will warn if you use it with only a single active connection.
+* `cider-format-buffer` tries to preserve the point position.
+
+### Bugs Fixed
+
+* [#2084](https://github.com/clojure-emacs/cider/issues/2084): Select correct REPL type (clj or cljs) in `cider-switch-to-repl-buffer` conditional on the current buffer.
+* [#2088](https://github.com/clojure-emacs/cider/issues/2088): Fix functions defined with `def` being font-locked as vars instead of functions.
+* [#1651](https://github.com/clojure-emacs/cider/issues/1651), [cider-nrepl#445](https://github.com/clojure-emacs/cider-nrepl/pull/455): Fix `cider-expected-ns` returns `nil` on boot projects.
+* [#2120](https://github.com/clojure-emacs/cider/issues/2120): Fix Travis CI build errors for Emacs versions >25.2.
+* [#2117](https://github.com/clojure-emacs/cider/pull/2117): Ensure `cider-repl-result-prefix` is only inserted before the first result chunk.
+* [#2123](https://github.com/clojure-emacs/cider/issues/2123): Process properly the Java version in Java 9.
+
+## 0.15.1 (2017-09-13)
+
+### New Features
+
+* [#2083](https://github.com/clojure-emacs/cider/pull/2083): New utility function `cider-add-face`.
+* [#2083](https://github.com/clojure-emacs/cider/pull/2083): New utility function `cider-run-chained-hook`.
+* [#2083](https://github.com/clojure-emacs/cider/pull/2083): New `cider-repl-preoutput-hook` that allows custom output processing.
+* [#2083](https://github.com/clojure-emacs/cider/pull/2083): Highlight clojure.spec keywords in REPL (`cider-repl-highlight-spec-keywords` pre-output processor).
+
+### Changes
+
+* [#2045](https://github.com/clojure-emacs/cider/issues/2045) `*cider-scratch*` buffers are no longer automatically killed on connection quit.
+* [#2083](https://github.com/clojure-emacs/cider/pull/2083): Jump to other window when clicking on location references in REPL.
+* [#2083](https://github.com/clojure-emacs/cider/pull/2083): Improve project namespace highlighting in REPLs.
+* [#2083](https://github.com/clojure-emacs/cider/pull/2083): Find locations in more cases when clicking on references in REPL.
+
+### Bugs Fixed
+
+* [#2004](https://github.com/clojure-emacs/cider/issues/2004), [#2039](https://github.com/clojure-emacs/cider/issues/2039), [cider-nrepl#420](https://github.com/clojure-emacs/cider-nrepl/issues/420): Fix namespace issues in instrumentation and debugging commands.
+* Project-Only stacktrace filter: hide all other tags when viewing project-only stacktrace.
+* Fix interactive evaluation in cljc buffers with only one connection.
+* [#2058](https://github.com/clojure-emacs/cider/pull/2058): Don't cache ns-forms in buffers with no such forms.
+* [#2057](https://github.com/clojure-emacs/cider/pull/2057): Use `cider--font-lock-ensure` for compatibility with Emacs 24.5.
+* [cider-nrepl#436](https://github.com/clojure-emacs/cider-nrepl/pull/436): Ensure that `*print-right-margin*` is not ignored by cider-nrepl middleware.
+* [cider-nrepl#435](https://github.com/clojure-emacs/cider-nrepl/pull/435): Allow debugging of forms with `#?(:cljs ... :clj ..)` conditionals.
+* [cider-nrepl#432](https://github.com/clojure-emacs/cider-nrepl/pull/432): Ensure `pprint` is after `load-file`.
+
+## 0.15.0 (2017-07-20)
+
+### New Features
+
+* [#2050](https://github.com/clojure-emacs/cider/pull/2050): Use `view-mode` for `cider-grimoire` buffers
+* Make stacktraces and other location references in REPL clickable.
+* Highlight root namespace in REPL stacktraces.
+* Filter stacktrace to just frames from your project.
+* [#1918](https://github.com/clojure-emacs/cider/issues/1918): Add new commands `cider-browse-spec` and `cider-browse-spec-all` which start a spec browser.
+* [#2015](https://github.com/clojure-emacs/cider/pull/2015): Show symbols as special forms *and* macros in `cider-doc`
+* [#2012](https://github.com/clojure-emacs/cider/pull/2012): Support special forms in `cider-apropos` and `cider-grimoire-lookup`.
+* [#2007](https://github.com/clojure-emacs/cider/pull/2007): Fontify code blocks from `cider-grimoire` if possible.
+* Add support for notifications from the NREPL server.
+* [#1990](https://github.com/clojure-emacs/cider/issues/1990): Add new customation variable `cider-save-files-on-cider-refresh` to allow auto-saving buffers when `cider-refresh` is called.
+* Add new function `cider-load-all-files`, along with menu bar update.
+* Add new customization variable `cider-special-mode-truncate-lines`.
+* Add an option `cider-inspector-fill-frame` to control whether the cider inspector window fills its frame.
+* [#1893](https://github.com/clojure-emacs/cider/issues/1893): Add negative prefix argument to `cider-refresh` to inhibit invoking of cider-refresh-functions
+* [#1776](https://github.com/clojure-emacs/cider/issues/1776): Add new customization variable `cider-test-defining-forms` allowing new test defining forms to be recognized.
+* [#1860](https://github.com/clojure-emacs/cider/issues/1860): Add `cider-repl-history` to browse the REPL input history and insert elements from it into the REPL buffer.
+* Add new customization variable `cider-font-lock-reader-conditionals` which toggles syntax highlighting of reader conditional expressions based on the buffer connection.
+* Add new face `cider-reader-conditional-face` which is used to mark unused reader conditional expressions.
+* [#1544](https://github.com/clojure-emacs/cider/issues/1544): Add a new defcustom `nrepl-use-ssh-fallback-for-remote-hosts` to control the behavior of `nrepl-connect` (and in turn that of `cider-connect`) for remote hosts.
+* [#1910](https://github.com/clojure-emacs/cider/issues/1910): Add custom company-mode completion style to show fuzzy completions from Compliment.
+* Introduce `cider-*-global-options` for customizing options that are not related to tasks.
+* [#1731](https://github.com/clojure-emacs/cider/issues/1731): Change code in order to use the new `cider.tasks/add-middleware` boot tasks.
+* [#1943](https://github.com/clojure-emacs/cider/pull/1943): Add interactive function to flush Compliment caches.
+* [#1726](https://github.com/clojure-emacs/cider/issues/1726): Order keys in printed nrepl message objects.
+* [#1832](https://github.com/clojure-emacs/cider/issues/1832): Add new customization variable `cider-eldoc-display-context-dependent-info` to control showing eldoc info for datomic query input parameters.
+* Make it possible to disable auto-evaluation of changed ns forms via the defcustom `cider-auto-track-ns-form-changes`.
+* [#1991](https://github.com/clojure-emacs/cider/issues/1832): Make it possible to disable the prompt to open a ClojureScript in a browser on connect via `cider-offer-to-open-cljs-app-in-browser`.
+* [#1995](https://github.com/clojure-emacs/cider/pull/1995): Add new customization variable `cider-doc-auto-select-buffer` to control cider-doc popup buffer auto selection.
+* Ensure that `cider-current-connection` picks the most recently used connection in ambiguous cases.
+* Ensure that `cider-switch-to-repl-buffer` picks the most recent repl buffer if multiple connections are available.
+* Add new function `cider-project-connections-types`.
+
+### Changes
+
+* Handle ANSI REPL evaluation created by Puget.
+* Drop support for Emacs 24.3.
+* Don't try to use ssh automatically when connecting to remote hosts and a direct connection fails. See `nrepl-use-ssh-fallback-for-remote-hosts`.
+* [#1945](https://github.com/clojure-emacs/cider/pull/1945): Start nREPL servers bound to `::` by default using `cider-jack-in`.
+* Renamed `cider-prompt-save-file-on-load` to `cider-save-file-on-load` and adjust its supported values accordingly (the default now is `'prompt` and `'always-save` is now simply `t`).
+* [#2014](https://github.com/clojure-emacs/cider/pull/2014): Unify the format for `forms-str` and `arglists-str`.
+* [#2027](https://github.com/clojure-emacs/cider/pull/2027): Mark many custom variables relating to `cider-jack-in` as safe.
+* [#2023](https://github.com/clojure-emacs/cider/issues/2023): Make popup-buffer sexp indentation optional.
+
+### Bugs Fixed
+
+* [#2040](https://github.com/clojure-emacs/cider/issues/2040): Fix fontification of conditional expressions in cljc files.
+* [#2018](https://github.com/clojure-emacs/cider/issues/2018): Don't delete wrong overlays during code evaluation.
+* [#1699](https://github.com/clojure-emacs/cider/issues/1699): Fix "Method code too large!" error that occurred during instrumentation for debugging.
+* [#1987](https://github.com/clojure-emacs/cider/issues/1987): Fix: Update faces when disabling a theme
+* [#1962](https://github.com/clojure-emacs/cider/issues/1962): Fix performance in fringe overlay placement.
+* [#1947](https://github.com/clojure-emacs/cider/issues/1947): Fix error on `cider-jack-in` when `enlighten-mode` is enabled.
+* [#1588](https://github.com/clojure-emacs/cider/issues/1588): Redirect `*err*`, `java.lang.System/out`, and `java.lang.System/err` to REPL buffer on all attached sessions.
+* [#1707](https://github.com/clojure-emacs/cider/issues/1707): Allow to customize line truncating in CIDER's special buffers.
+* [#1876](https://github.com/clojure-emacs/cider/issues/1876): Set pretty-printing width with `cider-repl-pretty-print-width`. If this variable is not set, fall back to `fill-column`.
+* [#1875](https://github.com/clojure-emacs/cider/issues/1875): Ensure that loading and evaluation in cljc buffers is performed in both clj and cljs repls.
+* [#1897](https://github.com/clojure-emacs/cider/issues/1897): Bind TAB in stacktrace buffers in the terminal.
+* [#1895](https://github.com/clojure-emacs/cider/issues/1895): Connect to the same host:port after `cider-restart` if the connection was established with `cider-connect`.
+* [#1881](https://github.com/clojure-emacs/cider/issues/1881): Add `cider-cljs-boot-repl` and `cider-cljs-gradle-repl` defcustom and hook `boot-cljs-repl`.
+* [#1997](https://github.com/clojure-emacs/cider/pull/1997): Fix a nil error when loading a code buffer and the error buffer is visible.
+* [#390](https://github.com/clojure-emacs/cider/issues/390): Workaround for orphaned java process on windows machine after quitting the REPL.
+
 ## 0.14.0 (2016-10-13)
 
 ### New Features
@@ -17,6 +136,7 @@ within the scope of your current Emacs session.
 * [#1789](https://github.com/clojure-emacs/cider/issues/1789): Make it easy to change the connection of the cider-scratch buffer from the mode's menu.
 * New interactive command `cider-toggle-buffer-connection`.
 * [#1861](https://github.com/clojure-emacs/cider/issues/1861): New interactive commands in message log buffer `nrepl-log-expand-button` and `nrepl-log-expand-all-buttons`.
+* [#1872](https://github.com/clojure-emacs/cider/issues/1872): Add new value `display-only` for option `cider-repl-pop-to-buffer-on-connect` that allows for showing the REPL buffer without focusing it.
 
 ### Changes
 

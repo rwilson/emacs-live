@@ -2,8 +2,12 @@ In case you run into issues here are a few tips that can help you diagnose the
 problem.
 
 Generally, it's not a bad idea to configure Emacs to spit the backtrace on error
-(instead of just logging the error in the `*Messages*` buffer. You can toggle
+(instead of just logging the error in the `*Messages*` buffer). You can toggle
 this behavior by using <kbd>M-x</kbd> `toggle-debug-on-error`.
+
+Another good idea is to check the exchange of requests and responses between
+CIDER and the nREPL server. You can find them in the `*nrepl-messages*` buffer,
+provided you've enabled nREPL message logging.
 
 ## Debugging CIDER commands
 
@@ -56,7 +60,7 @@ In the REPL buffer, issue the following.
 
 This will cause CIDER to print extensive information to the REPL buffer when you
 try to debug an expression (e.g., with <kbd>C-u
-C-M-x</kbd>). [File an issue](https://github.com/clojure-emacs/cider-repl/issues/new)
+C-M-x</kbd>). [File an issue](https://github.com/clojure-emacs/cider-nrepl/issues/new)
 and copy this information.
 
 ## Debugging freezes & lock-ups

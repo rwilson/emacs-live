@@ -55,13 +55,19 @@ the time of this writing it's still in development).
 By default `company-mode` will provide completion candidates with the assumption
 that whatever you've typed so far (e.g. `map-`) is a completion prefix (meaning
 you'd get only candidates that have `map-` in the beginnings of their names).
+You can get enhanced fuzzy completion with the CIDER-specific completion style
+by adding:
 
-You can get enhanced fuzzy completion with `company-mode` if you install the
-additional package [company-flx](https://github.com/PythonNut/company-flx).
-This is powered internally by [flx](https://github.com/lewang/flx).
+```el
+(add-hook 'cider-repl-mode-hook #'cider-company-enable-fuzzy-completion)
+(add-hook 'cider-mode-hook #'cider-company-enable-fuzzy-completion)
+```
 
-Basically with `company-flx` enabled typing something like `mp` will show you
-`map-indexed` as one of the possible completion candidates.
+Now `company-mode` will accept certain fuzziness when matching candidates
+against the prefix. For example, typing `mp` will show you `map-indexed` as one
+of the possible completion candidates, `cji` will complete to `clojure.java.io`,
+etc. Different completion examples are
+listed [here](https://github.com/alexander-yakushev/compliment/wiki/Examples).
 
 ### Completion annotations
 
@@ -76,6 +82,14 @@ Completion annotations can be disabled by setting
 `cider-annotate-completion-candidates` to `nil`.
 
 ![Completion Annotations](images/completion-annotations.png)
+
+### Updating stale classes and methods cache
+
+Sometimes, the completion fails to recognize new classes that came with
+dependencies that were loaded dynamically after the REPL has started (e.g. via
+Boot). Executing `M-x cider-completion-flush-caches` (or going through the menu
+`CIDER Interaction->Misc->Flush completion cache`) forces the completion backend
+to re-read all classes it can find on the classpath.
 
 ### Migrating from `auto-complete-mode`
 

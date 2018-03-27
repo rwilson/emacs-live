@@ -1,6 +1,6 @@
 ;;; cider-test.el --- Test result viewer -*- lexical-binding: t -*-
 
-;; Copyright © 2014-2016 Jeff Valk, Bozhidar Batsov and CIDER contributors
+;; Copyright © 2014-2017 Jeff Valk, Bozhidar Batsov and CIDER contributors
 
 ;; Author: Jeff Valk <jv@jeffvalk.com>
 
@@ -32,6 +32,7 @@
 (require 'cider-client)
 (require 'cider-popup)
 (require 'cider-stacktrace)
+(require 'subr-x)
 (require 'cider-compat)
 (require 'cider-overlays)
 
@@ -57,6 +58,15 @@
   :type 'boolean
   :group 'cider-test
   :package-version '(cider . "0.9.0"))
+
+(defcustom cider-test-defining-forms '("deftest" "defspec")
+  "Forms that define individual tests.
+CIDER considers the \"top-level\" form around point to define a test if
+the form starts with one of these forms.
+Add to this list to have CIDER recognize additional test defining macros."
+  :type '(repeat string)
+  :group 'cider-test
+  :package-version '(cider . "0.15.0"))
 
 (defvar cider-test-last-summary nil
   "The summary of the last run test.")
@@ -109,6 +119,11 @@
 
 (defadvice enable-theme (after cider-test-adapt-to-theme activate)
   "When theme is changed, update `cider-test-items-background-color'."
+  (setq cider-test-items-background-color (cider-scale-background-color)))
+
+
+(defadvice disable-theme (after cider-test-adapt-to-theme activate)
+  "When theme is disabled, update `cider-test-items-background-color'."
   (setq cider-test-items-background-color (cider-scale-background-color)))
 
 
@@ -198,7 +213,8 @@
 
 \\{cider-test-report-mode-map}"
   (setq buffer-read-only t)
-  (setq-local truncate-lines t)
+  (when cider-special-mode-truncate-lines
+    (setq-local truncate-lines t))
   (setq-local electric-indent-chars nil))
 
 ;; Report navigation
@@ -206,7 +222,7 @@
 (defun cider-test-show-report ()
   "Show the test report buffer, if one exists."
   (interactive)
-  (if-let ((report-buffer (get-buffer cider-test-report-buffer)))
+  (if-let* ((report-buffer (get-buffer cider-test-report-buffer)))
       (switch-to-buffer report-buffer)
     (message "No test report buffer")))
 
@@ -214,20 +230,20 @@
   "Move point to the previous test result, if one exists."
   (interactive)
   (with-current-buffer (get-buffer cider-test-report-buffer)
-    (when-let ((pos (previous-single-property-change (point) 'type)))
+    (when-let* ((pos (previous-single-property-change (point) 'type)))
       (if (get-text-property pos 'type)
           (goto-char pos)
-        (when-let ((pos (previous-single-property-change pos 'type)))
+        (when-let* ((pos (previous-single-property-change pos 'type)))
           (goto-char pos))))))
 
 (defun cider-test-next-result ()
   "Move point to the next test result, if one exists."
   (interactive)
   (with-current-buffer (get-buffer cider-test-report-buffer)
-    (when-let ((pos (next-single-property-change (point) 'type)))
+    (when-let* ((pos (next-single-property-change (point) 'type)))
       (if (get-text-property pos 'type)
           (goto-char pos)
-        (when-let ((pos (next-single-property-change pos 'type)))
+        (when-let* ((pos (next-single-property-change pos 'type)))
           (goto-char pos))))))
 
 (defun cider-test-jump (&optional arg)
@@ -250,15 +266,16 @@ prompt and whether to use a new window.  Similar to `cider-find-var'."
   "Display stacktrace for the erring NS VAR test with the assertion INDEX."
   (let (causes)
     (cider-nrepl-send-request
-     (append
-      (list "op" "test-stacktrace" "session" (cider-current-session)
-            "ns" ns "var" var "index" index)
-      (when (cider--pprint-fn)
-        (list "pprint-fn" (cider--pprint-fn)))
-      (when cider-stacktrace-print-length
-        (list "print-length" cider-stacktrace-print-length))
-      (when cider-stacktrace-print-level
-        (list "print-level" cider-stacktrace-print-level)))
+     (nconc `("op" "test-stacktrace"
+              "ns" ,ns
+              "var" ,var
+              "index" ,index)
+            (when (cider--pprint-fn)
+              `("pprint-fn" ,(cider--pprint-fn)))
+            (when cider-stacktrace-print-length
+              `("print-length" ,cider-stacktrace-print-length))
+            (when cider-stacktrace-print-level
+              `("print-level" ,cider-stacktrace-print-level)))
      (lambda (response)
        (nrepl-dbind-response response (class status)
          (cond (class  (setq causes (cons response causes)))
@@ -496,8 +513,8 @@ The optional arg TEST denotes an individual test name."
   "Return the buffer visiting the file in which the NS VAR is defined.
 Or nil if not found."
   (cider-ensure-op-supported "info")
-  (when-let ((info (cider-var-info (concat ns "/" var)))
-             (file (nrepl-dict-get info "file")))
+  (when-let* ((info (cider-var-info (concat ns "/" var)))
+              (file (nrepl-dict-get info "file")))
     (cider-find-file file)))
 
 (defun cider-test-highlight-problems (results)
@@ -506,7 +523,7 @@ Or nil if not found."
    (lambda (ns vars)
      (nrepl-dict-map
       (lambda (var tests)
-        (when-let ((buffer (cider-find-var-file ns var)))
+        (when-let* ((buffer (cider-find-var-file ns var)))
           (dolist (test tests)
             (nrepl-dbind-response test (type)
               (unless (equal "pass" type)
@@ -521,7 +538,7 @@ Or nil if not found."
     (nrepl-dict-map
      (lambda (ns vars)
        (dolist (var (nrepl-dict-keys vars))
-         (when-let ((buffer (cider-find-var-file ns var)))
+         (when-let* ((buffer (cider-find-var-file ns var)))
            (with-current-buffer buffer
              (remove-overlays nil nil 'category 'cider-test)))))
      cider-test-last-results)))
@@ -546,8 +563,7 @@ The default implementation uses the simple Leiningen convention of appending
 This uses the Leiningen convention of appending '-test' to the namespace name."
   (when ns
     (let ((suffix "-test"))
-      ;; string-suffix-p is only available in Emacs 24.4+
-      (if (string-match-p (rx-to-string `(: ,suffix eos) t) ns)
+      (if (string-suffix-p suffix ns)
           ns
         (concat ns suffix)))))
 
@@ -575,16 +591,15 @@ If SILENT is non-nil, suppress all messages other then test results."
            (cider-test-echo-running ns (car tests))
          (cider-test-echo-running ns)))
      (cider-nrepl-send-request
-      (list "op"     (cond ((stringp ns)         "test")
-                           ((eq :project ns)     "test-all")
-                           ((eq :loaded ns)      "test-all")
-                           ((eq :non-passing ns) "retest"))
-            "ns"     (when (stringp ns) ns)
-            "tests"  (when (stringp ns) tests)
-            "load?"  (when (or (stringp ns)
-                               (eq :project ns))
-                       "true")
-            "session" (cider-current-session))
+      `("op"     ,(cond ((stringp ns)         "test")
+                        ((eq :project ns)     "test-all")
+                        ((eq :loaded ns)      "test-all")
+                        ((eq :non-passing ns) "retest"))
+        "ns"     ,(when (stringp ns) ns)
+        "tests"  ,(when (stringp ns) tests)
+        "load?"  ,(when (or (stringp ns)
+                            (eq :project ns))
+                    "true"))
       (lambda (response)
         (nrepl-dbind-response response (summary results status out err)
           (cond ((member "namespace-not-found" status)
@@ -641,9 +656,9 @@ If SILENT is non-nil, suppress all messages other then test results.
 With a prefix arg SUPPRESS-INFERENCE it will try to run the tests in the
 current ns."
   (interactive "P")
-  (if-let ((ns (if suppress-inference
-                   (cider-current-ns t)
-                 (funcall cider-test-infer-test-ns (cider-current-ns t)))))
+  (if-let* ((ns (if suppress-inference
+                    (cider-current-ns t)
+                  (funcall cider-test-infer-test-ns (cider-current-ns t)))))
       (cider-test-execute ns nil silent)
     (if (eq major-mode 'cider-test-report-mode)
         (when (y-or-n-p (concat "Test report does not define a namespace. "
@@ -678,7 +693,7 @@ is searched."
           (cider-test-execute ns (list var)))
       (let ((ns  (clojure-find-ns))
             (def (clojure-find-def)))
-        (if (and ns (member (car def) '("deftest" "defspec")))
+        (if (and ns (member (car def) cider-test-defining-forms))
             (progn
               (cider-test-update-last-test ns (cdr def))
               (cider-test-execute ns (cdr def)))

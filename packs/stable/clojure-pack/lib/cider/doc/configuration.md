@@ -60,9 +60,9 @@ make the hidden buffers visible. They'll always be visible in
 
 ```el
 ;; Don't prompt and don't save
-(setq cider-prompt-save-file-on-load nil)
+(setq cider-save-file-on-load nil)
 ;; Just save without prompting
-(setq cider-prompt-save-file-on-load 'always-save)
+(setq cider-save-file-on-load t)
 ```
 
 * Change the result prefix for interactive evaluation (by default it's `=> `):
@@ -125,6 +125,18 @@ More details can be found [here](https://github.com/clojure-emacs/cider/issues/9
 (setq cider-filter-regexps '(".*nrepl"))
 ```
 
+* By default contents of CIDER's special buffers such as `*cider-test-report*`
+  or `*cider-doc*` are line truncated. You can set
+  `cider-special-mode-truncate-lines` to `nil` to make those buffers use word
+  wrapping instead of line truncating.
+
+  This variable should be set before loading CIDER (which means before
+  `require`-ing it or autoloading it).
+
+``` el
+(setq cider-special-mode-truncate-lines nil)
+```
+
 ## Configuring eldoc
 
 * Enable `eldoc` in Clojure buffers:
@@ -135,8 +147,8 @@ More details can be found [here](https://github.com/clojure-emacs/cider/issues/9
 
 ![Eldoc](images/eldoc.png)
 
-* CIDER also would show the eldoc for the symbol at point. So in (map inc ...)
-when the cursor is over inc its eldoc would be displayed. You can turn off this
+* CIDER also would show the eldoc for the symbol at point. So in `(map inc ...)`
+when the cursor is over `inc` its eldoc would be displayed. You can turn off this
 behaviour by:
 
 ```el
@@ -152,6 +164,15 @@ its behaviour.
 | `t`  | Never attempt to truncate messages. Complete symbol name and function arglist or variable documentation will be displayed even if echo area must be resized to fit.|
 | `nil`  | Messages are always truncated to fit in a single line of display in the echo area.  |
 | `truncate-sym-name-if-fit` or anything non-nil | Symbol name may be truncated if it will enable the function arglist or documentation string to fit on a single line. Otherwise, behavior is just like `t` case. |
+
+* CIDER will try to add expected function arguments based on the current context
+(for example for the `datomic.api/q` function where it will show the expected
+inputs of the query at point), if the variable `cider-eldoc-display-context-dependent-info`
+is non-nil:
+
+```el
+(setq cider-eldoc-display-context-dependent-info t)
+```
 
 ## Overlays
 

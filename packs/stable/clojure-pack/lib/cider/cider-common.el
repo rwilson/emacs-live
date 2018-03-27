@@ -1,6 +1,6 @@
 ;;; cider-common.el --- Common use functions         -*- lexical-binding: t; -*-
 
-;; Copyright © 2015-2016  Artur Malabarba
+;; Copyright © 2015-2017  Artur Malabarba
 
 ;; Author: Artur Malabarba <bruce.connor.am@gmail.com>
 
@@ -24,6 +24,7 @@
 
 ;;; Code:
 
+(require 'subr-x)
 (require 'cider-compat)
 (require 'nrepl-dict)
 (require 'cider-util)
@@ -41,6 +42,13 @@ prompt if that throws an error."
                  (const :tag "dwim" nil))
   :group 'cider
   :package-version '(cider . "0.9.0"))
+
+(defcustom cider-special-mode-truncate-lines t
+  "If non-nil, contents of CIDER's special buffers will be line-truncated.
+Should be set before loading CIDER."
+  :type 'boolean
+  :group 'cider
+  :package-version '(cider . "0.15.0"))
 
 (defun cider--should-prompt-for-symbol (&optional invert)
   "Return the value of the variable `cider-prompt-for-symbol'.
@@ -124,11 +132,14 @@ Return the tramp prefix, or nil if BUFFER is local."
                    (with-current-buffer buffer
                      default-directory))))
     (when (tramp-tramp-file-p name)
-      (let ((vec (tramp-dissect-file-name name)))
-        (tramp-make-tramp-file-name (tramp-file-name-method vec)
-                                    (tramp-file-name-user vec)
-                                    (tramp-file-name-host vec)
-                                    nil)))))
+      (with-parsed-tramp-file-name name v
+        ;; `tramp-make-tramp-file-name' was changed to take 6 mandatory
+        ;; parameters in Emacs 26 instead of 4
+        (if (version< emacs-version "26")
+            (with-no-warnings
+              (tramp-make-tramp-file-name v-method v-user v-host v-localname))
+          (with-no-warnings
+            (tramp-make-tramp-file-name v-method v-user v-domain v-host v-port v-localname)))))))
 
 (defun cider--client-tramp-filename (name &optional buffer)
   "Return the tramp filename for path NAME relative to BUFFER.
@@ -184,14 +195,14 @@ relative, it is expanded within each of the open Clojure buffers till an
 existing file ending with URL has been found."
   (require 'arc-mode)
   (cond ((string-match "^file:\\(.+\\)" url)
-         (when-let ((file (cider--url-to-file (match-string 1 url)))
-                    (path (cider--file-path file)))
+         (when-let* ((file (cider--url-to-file (match-string 1 url)))
+                     (path (cider--file-path file)))
            (find-file-noselect path)))
         ((string-match "^\\(jar\\|zip\\):\\(file:.+\\)!/\\(.+\\)" url)
-         (when-let ((entry (match-string 3 url))
-                    (file  (cider--url-to-file (match-string 2 url)))
-                    (path  (cider--file-path file))
-                    (name  (format "%s:%s" path entry)))
+         (when-let* ((entry (match-string 3 url))
+                     (file  (cider--url-to-file (match-string 2 url)))
+                     (path  (cider--file-path file))
+                     (name  (format "%s:%s" path entry)))
            (or (find-buffer-visiting name)
                (if (tramp-tramp-file-p path)
                    (progn
@@ -215,7 +226,7 @@ existing file ending with URL has been found."
                    (set-buffer-modified-p nil)
                    (set-auto-mode)
                    (current-buffer))))))
-        (t (if-let ((path (cider--file-path url)))
+        (t (if-let* ((path (cider--file-path url)))
                (find-file-noselect path)
              (unless (file-name-absolute-p url)
                (let ((cider-buffers (cider-util--clojure-buffers))

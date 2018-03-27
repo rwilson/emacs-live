@@ -1,7 +1,7 @@
-;;; cider-util.el --- Common utility functions that don't belong anywhere else -*- lexical-binding: t -*-
+;; cider-util.el --- Common utility functions that don't belong anywhere else -*- lexical-binding: t -*-
 
 ;; Copyright © 2012-2013 Tim King, Phil Hagelberg, Bozhidar Batsov
-;; Copyright © 2013-2016 Bozhidar Batsov, Artur Malabarba and CIDER contributors
+;; Copyright © 2013-2017 Bozhidar Batsov, Artur Malabarba and CIDER contributors
 ;;
 ;; Author: Tim King <kingtim@gmail.com>
 ;;         Phil Hagelberg <technomancy@gmail.com>
@@ -32,10 +32,11 @@
 ;;; Code:
 
 (require 'seq)
-(require 'cl-lib)
 (require 'clojure-mode)
+(require 'subr-x)
 (require 'cider-compat)
 (require 'nrepl-dict)
+(require 'ansi-color)
 
 (defalias 'cider-pop-back 'pop-tag-mark)
 
@@ -66,12 +67,12 @@ Setting this to nil removes the fontification restriction."
     default-directory))
 
 (defun cider-in-string-p ()
-  "Return true if point is in a string."
+  "Return non-nil if point is in a string."
   (let ((beg (save-excursion (beginning-of-defun) (point))))
     (nth 3 (parse-partial-sexp beg (point)))))
 
 (defun cider-in-comment-p ()
-  "Return true if point is in a comment."
+  "Return non-nil if point is in a comment."
   (let ((beg (save-excursion (beginning-of-defun) (point))))
     (nth 4 (parse-partial-sexp beg (point)))))
 
@@ -83,7 +84,7 @@ which nREPL uses for temporary evaluation file names."
     (string-match-p "^form-init" fname)))
 
 (defun cider--cljc-or-cljx-buffer-p (&optional buffer)
-  "Return true if the current buffer is visiting a cljc or cljx file.
+  "Return non-nil if the current buffer is visiting a cljc or cljx file.
 
 If BUFFER is provided act on that buffer instead."
   (with-current-buffer (or buffer (current-buffer))
@@ -92,7 +93,7 @@ If BUFFER is provided act on that buffer instead."
 
 ;;; Thing at point
 (defun cider-defun-at-point (&optional bounds)
-  "Return the text of the top-level sexp at point.
+  "Return the text of the top level sexp at point.
 If BOUNDS is non-nil, return a list of its starting and ending position
 instead."
   (save-excursion
@@ -114,7 +115,7 @@ instead."
   "Return the name of the symbol at point, otherwise nil.
 Ignores the REPL prompt.  If LOOK-BACK is non-nil, move backwards trying to
 find a symbol if there isn't one at point."
-  (or (when-let ((str (thing-at-point 'symbol)))
+  (or (when-let* ((str (thing-at-point 'symbol)))
         (unless (text-property-any 0 (length str) 'field 'cider-repl-prompt str)
           (substring-no-properties str)))
       (when look-back
@@ -130,13 +131,13 @@ find a symbol if there isn't one at point."
   "Return the sexp at point as a string, otherwise nil.
 If BOUNDS is non-nil, return a list of its starting and ending position
 instead."
-  (when-let ((b (or (and (equal (char-after) ?\()
-                         (member (char-before) '(?\' ?\, ?\@))
-                         ;; hide stuff before ( to avoid quirks with '( etc.
-                         (save-restriction
-                           (narrow-to-region (point) (point-max))
-                           (bounds-of-thing-at-point 'sexp)))
-                    (bounds-of-thing-at-point 'sexp))))
+  (when-let* ((b (or (and (equal (char-after) ?\()
+                          (member (char-before) '(?\' ?\, ?\@))
+                          ;; hide stuff before ( to avoid quirks with '( etc.
+                          (save-restriction
+                            (narrow-to-region (point) (point-max))
+                            (bounds-of-thing-at-point 'sexp)))
+                     (bounds-of-thing-at-point 'sexp))))
     (funcall (if bounds #'list #'buffer-substring-no-properties)
              (car b) (cdr b))))
 
@@ -165,6 +166,15 @@ Can only error if SKIP is non-nil."
       (forward-sexp 1)
       (cider-start-of-next-sexp))))
 
+(defun cider-second-sexp-in-list ()
+  "Return the second sexp in the list at point."
+  (condition-case nil
+      (save-excursion
+        (backward-up-list)
+        (forward-char)
+        (forward-sexp 2)
+        (cider-sexp-at-point))
+    (error nil)))
 
 ;;; Text properties
 
@@ -182,7 +192,8 @@ Can only error if SKIP is non-nil."
   "Execute BODY and add PROPS to all the inserted text.
 More precisely, PROPS are added to the region between the point's
 positions before and after executing BODY."
-  (declare (indent 1))
+  (declare (indent 1)
+           (debug (sexp body)))
   (let ((start (make-symbol "start")))
     `(let ((,start (point)))
        (prog1 (progn ,@body)
@@ -201,6 +212,28 @@ PROP is the name of a text property."
   (insert (if face (propertize text 'font-lock-face face) text))
   (when more-text (insert more-text))
   (when break (insert "\n")))
+
+
+;;; Hooks
+
+(defun cider-run-chained-hook (hook arg)
+  "Like `run-hook-with-args' but pass intermediate return values through.
+HOOK is a name of a hook (a symbol).  You can use `add-hook' or
+`remove-hook' to add functions to this variable.  ARG is passed to first
+function.  Its return value is passed to the second function and so forth
+till all functions are called or one of them returns nil.  Return the value
+return by the last called function."
+  (let ((functions (copy-sequence (symbol-value hook))))
+    (while (and functions arg)
+      (if (eq (car functions) t)
+          ;; global value of the hook
+          (let ((functions (default-value hook)))
+            (while (and functions arg)
+              (setq arg (funcall (car functions) arg))
+              (setq functions (cdr functions))))
+        (setq arg (funcall (car functions) arg)))
+      (setq functions (cdr functions)))
+    arg))
 
 
 ;;; Font lock
@@ -225,7 +258,7 @@ PROP is the name of a text property."
   "A list of buffers for different major modes.")
 
 (defun cider--make-buffer-for-mode (mode)
-  "Return a temp buffer using major-mode MODE.
+  "Return a temp buffer using `major-mode' MODE.
 This buffer is not designed to display anything to the user.  For that, use
 `cider-make-popup-buffer' instead."
   (setq cider--mode-buffers (seq-filter (lambda (x) (buffer-live-p (cdr x)))
@@ -241,16 +274,23 @@ This buffer is not designed to display anything to the user.  For that, use
           (funcall mode))
         b)))
 
+(defun cider-ansi-color-string-p (string)
+  "Return non-nil if STRING is an ANSI string."
+  (string-match "^\\[" string))
+
 (defun cider-font-lock-as (mode string)
   "Use MODE to font-lock the STRING."
-  (if (or (null cider-font-lock-max-length)
-          (< (length string) cider-font-lock-max-length))
-      (with-current-buffer (cider--make-buffer-for-mode mode)
-        (erase-buffer)
-        (insert string)
-        (font-lock-fontify-region (point-min) (point-max))
-        (buffer-string))
-    string))
+  (let ((string (if (cider-ansi-color-string-p string)
+                    (substring-no-properties (ansi-color-apply string))
+                  string)))
+    (if (or (null cider-font-lock-max-length)
+            (< (length string) cider-font-lock-max-length))
+        (with-current-buffer (cider--make-buffer-for-mode mode)
+          (erase-buffer)
+          (insert string)
+          (font-lock-fontify-region (point-min) (point-max))
+          (buffer-string))
+      string)))
 
 (defun cider-font-lock-region-as (mode beg end &optional buffer)
   "Use MODE to font-lock text between BEG and END.
@@ -270,6 +310,30 @@ Unless you specify a BUFFER it will default to the current one."
 (define-button-type 'cider-plain-button
   'face nil)
 
+(defun cider-add-face (regexp face &optional foreground-only sub-expr object)
+  "Propertize all occurrences of REGEXP with FACE.
+If FOREGROUND-ONLY is non-nil, change only the foreground of matched
+regions.  SUB-EXPR is a sub-expression of REGEXP to be
+propertized (defaults to 0).  OBJECT is an object to be
+propertized (defaults to current buffer)."
+  (setq sub-expr (or sub-expr 0))
+  (when (and regexp face)
+    (let ((beg 0)
+          (end 0))
+      (with-current-buffer (or (and (bufferp object) object)
+                               (current-buffer))
+        (while (if (stringp object)
+                   (string-match regexp object end)
+                 (re-search-forward regexp nil t))
+          (setq beg (match-beginning sub-expr)
+                end (match-end sub-expr))
+          (if foreground-only
+              (let ((face-spec (list (cons 'foreground-color
+                                           (face-attribute face :foreground nil t)))))
+                (font-lock-prepend-text-property beg end 'face face-spec object))
+            (put-text-property beg end 'face face object)))))))
+
+
 ;;; Colors
 
 (defun cider-scale-color (color scale)
@@ -304,26 +368,6 @@ A codename is added to stable versions."
 
 ;;; Strings
 
-(defun cider-string-trim-left (string)
-  "Remove leading whitespace from STRING."
-  (if (string-match "\\`[ \t\n\r]+" string)
-      (replace-match "" t t string)
-    string))
-
-(defun cider-string-trim-right (string)
-  "Remove trailing whitespace from STRING."
-  (if (string-match "[ \t\n\r]+\\'" string)
-      (replace-match "" t t string)
-    string))
-
-(defun cider-string-trim (string)
-  "Remove leading and trailing whitespace from STRING."
-  (cider-string-trim-left (cider-string-trim-right string)))
-
-(defun cider-string-join (strings &optional separator)
-  "Join all STRINGS using SEPARATOR."
-  (mapconcat #'identity strings separator))
-
 (defun cider-join-into-alist (candidates &optional separator)
   "Make an alist from CANDIDATES.
 The keys are the elements joined with SEPARATOR and values are the original
@@ -331,7 +375,7 @@ elements.  Useful for `completing-read' when candidates are complex
 objects."
   (mapcar (lambda (el)
             (if (listp el)
-                (cons (cider-string-join el (or separator ":")) el)
+                (cons (string-join el (or separator ":")) el)
               (cons el el)))
           candidates))
 
@@ -345,7 +389,7 @@ plugin or dependency with:
   (cider-add-to-alist 'cider-jack-in-lein-plugins
                   \"plugin/artifact-name\" \"THE-NEW-VERSION\")"
   (let ((alist (symbol-value symbol)))
-    (if-let ((cons (assoc car alist)))
+    (if-let* ((cons (assoc car alist)))
         (setcdr cons (list cadr))
       (set symbol (cons (list car cadr) alist)))))
 
@@ -466,7 +510,7 @@ restore it properly when going back."
   :package-version '(cider . "0.13.0"))
 
 (defun cider--find-symbol-xref ()
-  "Parse and return the first clojure symbol in current-buffer.
+  "Parse and return the first clojure symbol in current buffer.
 Use `cider-doc-xref-regexp' for the search.  Set match data and return a
 string of the Clojure symbol.  Return nil if there are no more matches in
 the buffer."
@@ -476,9 +520,32 @@ the buffer."
 (declare-function cider-doc-lookup "cider-doc")
 (declare-function cider--eldoc-remove-dot "cider-eldoc")
 
+;; Taken from: https://github.com/emacs-mirror/emacs/blob/65c8c7cb96c14f9c6accd03cc8851b5a3459049e/lisp/help-mode.el#L551-L565
+(defun cider--make-back-forward-xrefs (&optional buffer)
+  "Insert special references `back' and `forward', as in `help-make-xrefs'.
+
+Optional argument BUFFER is the buffer in which to insert references.
+Default is current buffer."
+  (with-current-buffer (or buffer (current-buffer))
+    (insert "\n")
+    (when (or help-xref-stack help-xref-forward-stack)
+      (insert "\n"))
+    ;; Make a back-reference in this buffer if appropriate.
+    (when help-xref-stack
+      (help-insert-xref-button help-back-label 'help-back
+                               (current-buffer)))
+    ;; Make a forward-reference in this buffer if appropriate.
+    (when help-xref-forward-stack
+      (when help-xref-stack
+        (insert "\t"))
+      (help-insert-xref-button help-forward-label 'help-forward
+                               (current-buffer)))
+    (when (or help-xref-stack help-xref-forward-stack)
+      (insert "\n"))))
+
 ;; Similar to https://github.com/emacs-mirror/emacs/blob/65c8c7cb96c14f9c6accd03cc8851b5a3459049e/lisp/help-mode.el#L404
 (defun cider--doc-make-xrefs ()
-  "Parse and hyperlink documentation cross-references in current-buffer.
+  "Parse and hyperlink documentation cross-references in current buffer.
 Find cross-reference information in a buffer and activate such cross
 references for selection with `help-xref'.  Cross-references are parsed
 using `cider--find-symbol-xref'.
@@ -498,23 +565,7 @@ through a stack of help buffers.  Variables `help-back-label' and
                             'type 'help-xref
                             'help-function (apply-partially #'cider-doc-lookup
                                                             (cider--eldoc-remove-dot symbol))))))
-
-  ;; create back and forward buttons if appropiate
-  (insert "\n")
-  (when (or help-xref-stack help-xref-forward-stack)
-    (insert "\n"))
-  ;; Make a back-reference in this buffer if appropriate.
-  (when help-xref-stack
-    (help-insert-xref-button help-back-label 'help-back
-                             (current-buffer)))
-  ;; Make a forward-reference in this buffer if appropriate.
-  (when help-xref-forward-stack
-    (when help-xref-stack
-      (insert "\t"))
-    (help-insert-xref-button help-forward-label 'help-forward
-                             (current-buffer)))
-  (when (or help-xref-stack help-xref-forward-stack)
-    (insert "\n")))
+  (cider--make-back-forward-xrefs))
 
 
 ;;; Words of inspiration
@@ -629,6 +680,7 @@ through a stack of help buffers.  Variables `help-back-label' and
     "Press <\\[cider-drink-a-sip]> to get more CIDER tips."
     "Press <\\[cider-browse-ns-all]> to start CIDER's namespace browser."
     "Press <\\[cider-classpath]> to start CIDER's classpath browser."
+    "Press <\\[cider-repl-history]> to start CIDER's REPL input history browser."
     "Press <\\[cider-macroexpand-1]> to expand the preceding macro."
     "Press <\\[cider-inspect]> to inspect the preceding expression's result."
     "Press <C-u \\[cider-inspect]> to inspect the defun at point's result."
